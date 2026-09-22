@@ -6,10 +6,16 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 
 export type Prodi = {
-  id: number;
+  id: string;
   prodi: string;
   universitas: string;
-  pg_snbt: number;
+  singkatan: string;
+  rumpun: string;
+  mapel_pendukung: string[];
+  daya_tampung_snbp: number;
+  daya_tampung_snbt: number;
+  peminat_snbp_historis: number[];
+  peminat_snbt_historis: number[];
 };
 
 type Props = {
@@ -27,11 +33,11 @@ export function ProdiSearch({ value, onChange }: Props) {
   useEffect(() => {
     async function fetchProdi() {
       const { data, error } = await supabase
-        .from('passing_grade')
+        .from('prodi_lengkap')
         .select('*')
         .order('universitas', { ascending: true })
         .limit(500);
-      if (!error && data) setProdiList(data);
+      if (!error && data) setProdiList(data as Prodi[]);
       setLoading(false);
     }
     fetchProdi();
@@ -66,7 +72,7 @@ export function ProdiSearch({ value, onChange }: Props) {
           <div className="flex flex-col overflow-hidden">
             <span className="text-sm font-semibold truncate">{value.prodi}</span>
             <span className="text-xs text-muted-foreground truncate">
-              {value.universitas} · PG: {value.pg_snbt}
+              {value.universitas} · SNBP: {value.daya_tampung_snbp} kursi
             </span>
           </div>
           <button
@@ -106,7 +112,7 @@ export function ProdiSearch({ value, onChange }: Props) {
                 >
                   <div className="text-sm font-semibold">{p.prodi}</div>
                   <div className="text-xs text-muted-foreground">
-                    {p.universitas} · PG: {p.pg_snbt}
+                    {p.universitas} · {p.daya_tampung_snbp} kursi SNBP
                   </div>
                 </button>
               ))}

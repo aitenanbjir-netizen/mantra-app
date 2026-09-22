@@ -3,61 +3,20 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { hitungSkorSNBP } from '@/lib/logic';
-import { LikertScale } from '@/components/LikertScale';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-
-type SiswaCache = {
-  id: string;
-  nama: string;
-  kelas: string;
-  target_prodi: string;
-};
-
-const mapelPerKelompok: Record<string, string[]> = {
-  Saintek: ['Matematika', 'Fisika', 'Kimia', 'Biologi', 'Informatika'],
-  Soshum: ['Ekonomi', 'Sosiologi', 'Sejarah', 'Geografi', 'Matematika'],
-  Bahasa: ['Bahasa Indonesia', 'Bahasa Inggris', 'Bahasa Asing'],
-  Campuran: [
-    'Matematika',
-    'Fisika',
-    'Kimia',
-    'Biologi',
-    'Ekonomi',
-    'Sosiologi',
-    'Sejarah',
-    'Geografi',
-    'Bahasa Indonesia',
-    'Bahasa Inggris',
-  ],
-};
+  prediksiSNBP,
+  type SiswaProfile,
+  type ProdiPilihan,
+} from '@/lib/prediction';
+import { DISCLAIMER_TEXT } from '@/lib/config';
+import { Button } from '@/components/ui/button';
 
 export default function SNBPPage() {
-  const [siswa, setSiswa] = useState<SiswaCache | null>(null);
+  const [siswa, setSiswa] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [submitLoading, setSubmitLoading] = useState(false);
-
-  const [kelompok, setKelompok] = useState('');
-  const [mapelTKA1, setMapelTKA1] = useState('');
-  const [mapelTKA2, setMapelTKA2] = useState('');
-  const [rataRapor, setRataRapor] = useState('');
-  const [nilaiTKA1, setNilaiTKA1] = useState('');
-  const [nilaiTKA2, setNilaiTKA2] = useState('');
-  const [stres, setStres] = useState(3);
-
-  const [hasil, setHasil] = useState<{
-    skor: number;
-    rekomendasi: string;
-  } | null>(null);
+  const [hitungLoading, setHitungLoading] = useState(false);
+  const [hasil, setHasil] = useState<any>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const cached = localStorage.getItem('mantra_siswa');
@@ -65,71 +24,106 @@ export default function SNBPPage() {
     setLoading(false);
   }, []);
 
-  const listMapel = kelompok ? mapelPerKelompok[kelompok] || [] : [];
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function hitungPrediksi() {
     if (!siswa) return;
+    setHitungLoading(true);
+    setError('');
+    setHasil(null);
 
-    if (!kelompok || !mapelTKA1 || !mapelTKA2) {
-      alert('⚠️ Lengkapi Kelompok & 2 Mapel TKA!');
-      return;
-    }
-    if (!rataRapor || !nilaiTKA1 || !nilaiTKA2) {
-      alert('⚠️ Isi semua nilai!');
-      return;
-    }
+    try {
+      const { data: siswaData, error: errSiswa } = await supabase
+        .from('siswa')
+        .select('*, sekolah:sekolah_id(akreditasi)')
+        .eq('id', siswa.id)
+        .single();
 
-    const rr = parseFloat(rataRapor);
-    const n1 = parseFloat(nilaiTKA1);
-    const n2 = parseFloat(nilaiTKA2);
+      if (errSiswa) throw new Error('Siswa: ' + errSiswa.message);
+      if (!siswaData) throw new Error('Data siswa tidak ditemukan.');
 
-    if (rr < 0 || rr > 100 || n1 < 0 || n1 > 100 || n2 < 0 || n2 > 100) {
-      alert('⚠️ Nilai harus 0-100!');
-      return;
-    }
+      const { data: raporData, error: errRapor } = await supabase
+        .from('nilai_rapor')
+        .select('semester, mapel, nilai')
+        .eq('siswa_id', siswa.id);
 
-    setSubmitLoading(true);
+      if (errRapor) throw new Error('Rapor: ' + errRapor.message);
+      if (!raporData || raporData.length === 0) {
+        throw new Error('Data rapor kosong. Isi Rapor terlebih dahulu.');
+      }
 
-    const skor = hitungSkorSNBP(rr, n1, n2);
+      const { data: prestasiData } = await supabase
+        .from('prestasi')
+        .select('level, peringkat, relevan_prodi')
+        .eq('siswa_id', siswa.id);
 
-    let rek = '';
-    if (skor >= 85) rek = '🌟 Skor SNBP sangat baik! Peluang besar lolos SNBP.';
-    else if (skor >= 75) rek = '😊 Skor SNBP cukup baik. Pertahankan & tingkatkan TKA.';
-    else rek = '📚 Skor SNBP masih di bawah 75. Fokus perbaiki nilai rapor & TKA.';
+      const { data: pilihanData, error: errPilihan } = await supabase
+        .from('pilihan_siswa')
+        .select(
+          'urutan, prodi:prodi_id(id, nama, rumpun, mapel_pendukung, daya_tampung_snbp, peminat_snbp_historis, bobot_snbp, ptn:ptn_id(nama, singkatan))'
+        )
+        .eq('siswa_id', siswa.id)
+        .eq('jalur', 'SNBP')
+        .order('urutan');
 
-    const { error } = await supabase
-      .from('siswa')
-      .update({
-        kelompok,
-        mapel_tka_1: mapelTKA1,
-        mapel_tka_2: mapelTKA2,
-        rata_rapor: rr,
-        nilai_tka_1: n1,
-        nilai_tka_2: n2,
-        skor_snbp: skor,
-      })
-      .eq('id', siswa.id);
+      if (errPilihan) throw new Error('Pilihan: ' + errPilihan.message);
+      if (!pilihanData || pilihanData.length === 0) {
+        throw new Error('Belum ada pilihan prodi. Isi Data Diri dulu.');
+      }
 
-    await supabase.from('log_prediksi').insert({
-      siswa_id: siswa.id,
-      jenis: 'SNBP',
-      skor: skor,
-      stres: stres,
-      rekomendasi: rek,
-    });
+      const profile: SiswaProfile = {
+        rapor: raporData.map((r: any) => ({
+          semester: r.semester,
+          mapel: r.mapel,
+          nilai: Number(r.nilai),
+        })),
+        prestasi: (prestasiData || []).map((p: any) => ({
+          level: p.level,
+          peringkat: p.peringkat,
+          relevan_prodi: p.relevan_prodi,
+        })),
+        skorTKA: siswaData.skor_tka || null,
+        akreditasi: siswaData.sekolah?.akreditasi || 'A',
+        indeksSekolahDiPTN: 0.5,
+        peringkatKelas: siswaData.peringkat_kelas_paralel,
+        jumlahEligible: siswaData.jumlah_siswa_eligible,
+      };
 
-    setSubmitLoading(false);
+      const pilihan: ProdiPilihan[] = pilihanData.map((p: any) => {
+        const prodi = Array.isArray(p.prodi) ? p.prodi[0] : p.prodi;
+        const ptn = prodi?.ptn
+          ? Array.isArray(prodi.ptn)
+            ? prodi.ptn[0]
+            : prodi.ptn
+          : null;
+        return {
+          id: prodi.id,
+          nama: prodi.nama,
+          universitas: ptn?.singkatan || ptn?.nama || '-',
+          dayaTampung: prodi.daya_tampung_snbp || 40,
+          peminatHistoris: prodi.peminat_snbp_historis || [1000],
+          mapelPendukung: prodi.mapel_pendukung || [],
+          bobotSNBP: prodi.bobot_snbp,
+          medianPelamar: 82,
+        };
+      });
 
-    if (error) {
-      alert('❌ Error: ' + error.message);
-    } else {
-      setHasil({ skor, rekomendasi: rek });
+      const result = prediksiSNBP({
+        siswa: profile,
+        pilihan,
+        disclaimer: DISCLAIMER_TEXT,
+      });
+
+      setHasil(result);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setHitungLoading(false);
     }
   }
 
   if (loading) {
-    return <div className="text-center text-muted-foreground py-12">Memuat...</div>;
+    return (
+      <div className="text-center text-muted-foreground py-12">Memuat...</div>
+    );
   }
 
   if (!siswa) {
@@ -137,9 +131,6 @@ export default function SNBPPage() {
       <div className="bg-card border border-border rounded-2xl p-6 text-center space-y-4">
         <div className="text-5xl">⚠️</div>
         <h2 className="text-xl font-bold">Data Diri Belum Diisi</h2>
-        <p className="text-muted-foreground text-sm">
-          Silakan isi Data Diri terlebih dahulu.
-        </p>
         <Link href="/">
           <Button className="bg-primary hover:bg-primary/90">
             ← Kembali ke Data Diri
@@ -151,165 +142,158 @@ export default function SNBPPage() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-card border border-border rounded-2xl p-6">
-        <div className="mb-4 pb-4 border-b border-border">
-          <p className="text-xs text-muted-foreground">Halo,</p>
-          <p className="text-lg font-bold">{siswa.nama}</p>
-          <p className="text-xs text-muted-foreground">
-            🎯 {siswa.target_prodi}
-          </p>
-        </div>
-
-        <h2 className="text-xl font-bold mb-1">Prediksi SNBP</h2>
-        <p className="text-muted-foreground text-xs mb-6">
-          Bobot 50% Rata-rata Rapor + 50% 2 Mapel TKA
-        </p>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label className="mb-2 block text-sm">🧭 Kelompok Jurusan</Label>
-            <Select
-              value={kelompok}
-              onValueChange={(v) => {
-                setKelompok(v);
-                setMapelTKA1('');
-                setMapelTKA2('');
-              }}
-            >
-              <SelectTrigger className="bg-secondary border-border">
-                <SelectValue placeholder="-- Pilih Kelompok --" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Saintek">Saintek (IPA)</SelectItem>
-                <SelectItem value="Soshum">Soshum (IPS)</SelectItem>
-                <SelectItem value="Bahasa">Bahasa</SelectItem>
-                <SelectItem value="Campuran">Campuran</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="mb-2 block text-xs">📖 Mapel TKA 1</Label>
-              <Select
-                value={mapelTKA1}
-                onValueChange={setMapelTKA1}
-                disabled={!kelompok}
-              >
-                <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue placeholder="-- Pilih --" />
-                </SelectTrigger>
-                <SelectContent>
-                  {listMapel.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="mb-2 block text-xs">📖 Mapel TKA 2</Label>
-              <Select
-                value={mapelTKA2}
-                onValueChange={setMapelTKA2}
-                disabled={!kelompok}
-              >
-                <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue placeholder="-- Pilih --" />
-                </SelectTrigger>
-                <SelectContent>
-                  {listMapel.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div>
-            <Label className="mb-2 block text-sm">
-              📈 Rata-rata Rapor Sem 1-5
-            </Label>
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              value={rataRapor}
-              onChange={(e) => setRataRapor(e.target.value)}
-              placeholder="0-100"
-              className="bg-secondary border-border"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="mb-2 block text-xs">Nilai TKA 1</Label>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                value={nilaiTKA1}
-                onChange={(e) => setNilaiTKA1(e.target.value)}
-                placeholder="0-100"
-                className="bg-secondary border-border"
-              />
-            </div>
-            <div>
-              <Label className="mb-2 block text-xs">Nilai TKA 2</Label>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                value={nilaiTKA2}
-                onChange={(e) => setNilaiTKA2(e.target.value)}
-                placeholder="0-100"
-                className="bg-secondary border-border"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label className="mb-3 block text-sm">
-              🧠 Tingkat Stres Hari Ini
-            </Label>
-            <LikertScale value={stres} onChange={setStres} />
-          </div>
-
-          <Button
-            type="submit"
-            disabled={submitLoading}
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6"
-          >
-            {submitLoading ? 'Menghitung...' : '🚀 Hitung Skor SNBP'}
-          </Button>
-        </form>
+      <div className="bg-card border border-border rounded-2xl p-4">
+        <p className="text-xs text-muted-foreground">Prediksi SNBP untuk</p>
+        <p className="font-bold">{siswa.nama}</p>
+        <p className="text-xs text-muted-foreground">🎯 {siswa.target_prodi}</p>
       </div>
 
+      {!hasil && (
+        <div className="bg-card border border-border rounded-2xl p-6 text-center space-y-4">
+          <div className="text-5xl">🔮</div>
+          <h2 className="text-lg font-bold">Siap Hitung Prediksi?</h2>
+          <p className="text-muted-foreground text-sm">
+            Sistem akan menganalisis rapor, prestasi, sekolah, dan keketatan
+            prodi untuk menghitung peluang lolosmu.
+          </p>
+          <Button
+            onClick={hitungPrediksi}
+            disabled={hitungLoading}
+            className="w-full bg-primary hover:bg-primary/90 font-semibold py-6"
+          >
+            {hitungLoading ? 'Menghitung...' : '🚀 Hitung Prediksi SNBP'}
+          </Button>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-3 text-sm text-red-300">
+          ❌ {error}
+        </div>
+      )}
+
       {hasil && (
-        <div className="bg-card border border-primary/30 rounded-2xl p-6 space-y-3">
-          <div className="text-center bg-primary/10 border border-primary/30 rounded-xl p-4">
-            <p className="text-xs text-muted-foreground mb-1">SKOR SNBP</p>
-            <p className="text-4xl font-extrabold text-primary">{hasil.skor}</p>
-            <p className="text-[10px] text-muted-foreground mt-1">
-              50% Rapor + 50% Mapel TKA
+        <>
+          <div className="bg-primary/10 border border-primary/30 rounded-2xl p-6 text-center">
+            <p className="text-xs text-muted-foreground mb-1">
+              PELUANG LOLOS SNBP (TOTAL)
+            </p>
+            <p className="text-5xl font-extrabold text-primary mb-2">
+              {Math.round(hasil.probabilitasTotal * 100)}%
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {hasil.pilihan.length} pilihan prodi
             </p>
           </div>
 
-          <div className="bg-secondary border border-border rounded-xl p-3">
-            <p className="text-xs text-muted-foreground mb-1">💬 Rekomendasi</p>
-            <p className="text-sm">{hasil.rekomendasi}</p>
+          {hasil.pilihan.map((p: any) => (
+            <div
+              key={p.urutan}
+              className="bg-card border border-border rounded-2xl p-5 space-y-3"
+            >
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <p className="text-[10px] text-muted-foreground">
+                    PILIHAN {p.urutan}
+                  </p>
+                  <p className="font-bold text-sm">{p.prodiNama}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.universitas}
+                  </p>
+                </div>
+                <div
+                  className="px-3 py-1 rounded-full text-[10px] font-bold"
+                  style={{
+                    background: p.kategoriWarna + '20',
+                    color: p.kategoriWarna,
+                  }}
+                >
+                  {p.kategoriLabel}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-secondary rounded-xl p-2">
+                  <p className="text-[9px] text-muted-foreground">SKOR KAMU</p>
+                  <p className="font-bold text-lg">{p.skorKomposit}</p>
+                </div>
+                <div className="bg-secondary rounded-xl p-2">
+                  <p className="text-[9px] text-muted-foreground">
+                    EST. CUTOFF
+                  </p>
+                  <p className="font-bold text-lg">{p.estimasiCutoff}</p>
+                </div>
+                <div className="bg-secondary rounded-xl p-2">
+                  <p className="text-[9px] text-muted-foreground">PELUANG</p>
+                  <p className="font-bold text-lg text-primary">
+                    {Math.round(p.probabilitas * 100)}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-center text-xs text-muted-foreground">
+                Interval:{' '}
+                <span className="text-foreground font-semibold">
+                  {Math.round(p.intervalBawah * 100)}% -{' '}
+                  {Math.round(p.intervalAtas * 100)}%
+                </span>
+              </div>
+
+              {p.faktorPendorong.length > 0 && (
+                <div className="bg-emerald-900/20 border border-emerald-500/20 rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-emerald-300 mb-2">
+                    ✅ FAKTOR PENDORONG
+                  </p>
+                  {p.faktorPendorong.map((f: any, i: number) => (
+                    <div key={i} className="flex justify-between text-xs py-0.5">
+                      <span className="text-muted-foreground">{f.faktor}</span>
+                      <span className="text-emerald-300 font-bold">
+                        {f.kontribusi}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {p.faktorPenghambat.length > 0 && (
+                <div className="bg-red-900/20 border border-red-500/20 rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-red-300 mb-2">
+                    ⚠️ FAKTOR PENGHAMBAT
+                  </p>
+                  {p.faktorPenghambat.map((f: any, i: number) => (
+                    <div key={i} className="flex justify-between text-xs py-0.5">
+                      <span className="text-muted-foreground">{f.faktor}</span>
+                      <span className="text-red-300 font-bold">
+                        {f.kontribusi}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {p.saran.length > 0 && (
+                <div className="bg-secondary rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-muted-foreground mb-2">
+                    💡 SARAN
+                  </p>
+                  <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                    {p.saran.map((s: string, i: number) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ))}
+
+          <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-3 text-xs text-yellow-200/80 leading-relaxed">
+            ⚠️ {hasil.disclaimer}
           </div>
 
-          <Link href="/snbt">
-            <Button className="w-full bg-primary hover:bg-primary/90">
-              Lanjut ke SNBT →
-            </Button>
-          </Link>
-        </div>
+          <p className="text-center text-[10px] text-muted-foreground">
+            Model: {hasil.modelVersion} · Data: {hasil.dataVintage}
+          </p>
+        </>
       )}
     </div>
   );

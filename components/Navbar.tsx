@@ -5,9 +5,9 @@ import { usePathname } from 'next/navigation';
 
 const tabs = [
   { name: 'Data Diri', href: '/', icon: '📝' },
+  { name: 'Rapor', href: '/rapor', icon: '📊' },
+  { name: 'Prestasi', href: '/prestasi', icon: '🏆' },
   { name: 'SNBP', href: '/snbp', icon: '🎓' },
-  { name: 'SNBT', href: '/snbt', icon: '📊' },
-  { name: 'Chat AI', href: '/chat', icon: '🤖' },
 ];
 
 export function Navbar() {
@@ -23,14 +23,14 @@ export function Navbar() {
           </p>
         </Link>
 
-        <nav className="flex gap-1 bg-card border border-border rounded-xl p-1">
+        <nav className="flex gap-1 bg-card border border-border rounded-xl p-1 overflow-x-auto">
           {tabs.map((tab) => {
             const isActive = pathname === tab.href;
             return (
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`flex-1 text-center py-2 px-2 rounded-lg text-[11px] font-semibold transition-all ${
+                className={`flex-1 min-w-[70px] text-center py-2 px-1 rounded-lg text-[10px] font-semibold transition-all whitespace-nowrap ${
                   isActive
                     ? 'bg-primary/20 text-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary'

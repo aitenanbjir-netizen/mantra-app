@@ -332,7 +332,7 @@ export function hitungProbabilitasTotalSNBT(probabilitas: number[]): number {
 // ---------- INTERVAL KEPERCAYAAN ----------
 export function hitungInterval(
   probabilitas: number,
-  confidence: 'rendah' | 'sedang' | 'tinggi' = 'sedang'
+  confidence: string = 'sedang'
 ): [number, number] {
   const delta =
     confidence === 'tinggi' ? 0.08 : confidence === 'sedang' ? 0.12 : 0.18;
