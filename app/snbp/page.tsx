@@ -84,7 +84,7 @@ export default function SNBPPage() {
       const { data: pilihanData, error: errPilihan } = await supabase
         .from('pilihan_siswa')
         .select(
-          'urutan, prodi:prodi_id(id, nama, rumpun, mapel_pendukung, daya_tampung_snbp, peminat_snbp_historis, median_snbp, bobot_snbp, ptn:ptn_id(nama, singkatan))'
+          'urutan, prodi:prodi_id(id, nama, rumpun, mapel_pendukung, daya_tampung_snbp, peminat_snbp_historis, bobot_snbp, ptn:ptn_id(nama, singkatan))'
         )
         .eq('siswa_id', siswa.id)
         .eq('jalur', 'SNBP')
@@ -138,9 +138,7 @@ export default function SNBPPage() {
           mapelPendukung: prodi.mapel_pendukung || [],
           bobotSNBP: prodi.bobot_snbp || undefined,
           medianPelamar:
-            prodi.median_snbp !== null && prodi.median_snbp !== undefined
-              ? Number(prodi.median_snbp)
-              : DEFAULT_MEDIAN_SNBP,
+            Number(prodi.bobot_snbp?.median_snbp) || DEFAULT_MEDIAN_SNBP,
         };
       });
 

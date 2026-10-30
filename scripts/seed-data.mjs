@@ -230,7 +230,12 @@ export function buildProdiRows() {
       rows.push({
         singkatan: ptn.singkatan,
         nama: p.nama,
-        rumpun: p.rumpun,
+        rumpun:
+          p.rumpun.toLowerCase() === 'vokasi'
+            ? 'campuran'
+            : p.rumpun.toLowerCase(),
+        jenjang: ptn.jenis === 'vokasi' ? 'D4' : 'S1',
+        butuhPortofolio: false,
         mapel: p.mapel,
         dsnbp,
         dsnbt,
@@ -241,6 +246,17 @@ export function buildProdiRows() {
           mapel_pendukung: 0.3,
           prestasi: 0.1,
           tka: 0.1,
+          median_snbp: medsnbp,
+        },
+        bobotSnbt: {
+          PU: 0.15,
+          PPU: 0.13,
+          PBM: 0.13,
+          PK: 0.15,
+          LBI: 0.15,
+          LBE: 0.14,
+          PM: 0.15,
+          median_snbt: medsnbt,
         },
         medsnbp,
         medsnbt,

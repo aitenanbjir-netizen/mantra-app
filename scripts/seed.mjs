@@ -1,5 +1,7 @@
 // Mengisi Supabase dengan 50 PTN + 500 prodi.
-// Prasyarat: supabase/schema.sql sudah dijalankan di SQL Editor.
+// Skrip ini menyesuaikan diri dengan schema MANTRA yang sudah ada:
+// - ptn: kode, nama, singkatan
+// - prodi: rumpun, jenjang, butuh_portofolio, bobot_snbp, bobot_snbt
 // Jalankan: npm run seed
 
 import fs from 'node:fs';
@@ -62,75 +64,104 @@ async function main() {
   console.log('MANTRA seed — 50 PTN, 500 prodi');
   console.log(`Target: ${url}`);
 
-  const cek = await request('ptn?select=singkatan&limit=1');
+  const cek = await request('ptn?select=id,singkatan,nama&limit=200');
   if (!cek.response.ok) {
     throw new Error(
       `Tabel public.ptn belum bisa diakses (HTTP ${cek.response.status}). ` +
-        'Jalankan supabase/schema.sql dulu di Supabase SQL Editor.'
+        'Pastikan project Supabase aktif dan RLS sudah dimatikan untuk development.'
     );
   }
 
-  console.log('1/3 Upsert daftar PTN...');
-  const ptnPayload = PTN.map((p) => ({
-    nama: p.nama,
-    singkatan: p.singkatan,
-    kota: p.kota,
-  }));
+  const existingPtn = new Map(
+    (Array.isArray(cek.json) ? cek.json : []).map((p) => [p.singkatan, p])
+  );
 
-  const upsertPtn = await request('ptn?on_conflict=singkatan', {
-    method: 'POST',
-    headers: {
-      Prefer: 'resolution=merge-duplicates,return=minimal',
-    },
-    body: JSON.stringify(ptnPayload),
-  });
-  if (!upsertPtn.response.ok) {
-    throw new Error(
-      `Gagal menyimpan PTN (HTTP ${upsertPtn.response.status}): ${upsertPtn.text}`
-    );
+  const missingPtn = PTN.filter((p) => !existingPtn.has(p.singkatan));
+
+  if (missingPtn.length > 0) {
+    console.log(`1/3 Tambah ${missingPtn.length} PTN baru...`);
+    const res = await request('ptn', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(
+        missingPtn.map((p) => ({
+          kode: p.singkatan,
+          nama: p.nama,
+          singkatan: p.singkatan,
+        }))
+      ),
+    });
+    if (!res.response.ok) {
+      throw new Error(
+        `Gagal menyimpan PTN (HTTP ${res.response.status}): ${res.text}`
+      );
+    }
+  } else {
+    console.log('1/3 Semua PTN sudah ada.');
   }
 
   console.log('2/3 Ambil ID PTN...');
-  const ptnRes = await request('ptn?select=id,singkatan&limit=1000');
+  const ptnRes = await request('ptn?select=id,singkatan&limit=500');
   if (!ptnRes.response.ok) {
     throw new Error(`Gagal membaca PTN: ${ptnRes.text}`);
   }
-  const ptnList = Array.isArray(ptnRes.json) ? ptnRes.json : [];
   const idPtn = new Map(
-    ptnList.map((p) => [p.singkatan, p.id])
+    (Array.isArray(ptnRes.json) ? ptnRes.json : []).map((p) => [
+      p.singkatan,
+      p.id,
+    ])
   );
 
   const rows = buildProdiRows();
-  const belumAda = [...new Set(rows.map((r) => r.singkatan))].filter(
+  const belumAdaPtn = [...new Set(rows.map((r) => r.singkatan))].filter(
     (s) => !idPtn.has(s)
   );
-  if (belumAda.length > 0) {
-    throw new Error(`PTN belum tersimpan: ${belumAda.join(', ')}`);
+  if (belumAdaPtn.length > 0) {
+    throw new Error(`PTN belum tersimpan: ${belumAdaPtn.join(', ')}`);
   }
 
-  console.log(`3/3 Insert ${rows.length} prodi...`);
-  const payload = rows.map((r) => ({
-    ptn_id: idPtn.get(r.singkatan),
-    nama: r.nama,
-    rumpun: r.rumpun,
-    mapel_pendukung: r.mapel,
-    daya_tampung_snbp: r.dsnbp,
-    daya_tampung_snbt: r.dsnbt,
-    peminat_snbp_historis: r.psnbp,
-    peminat_snbt_historis: r.psnbt,
-    bobot_snbp: r.bobot,
-    median_snbp: r.medsnbp,
-    median_snbt: r.medsnbt,
-  }));
+  const prodiRes = await request('prodi?select=ptn_id,nama&limit=2000');
+  if (!prodiRes.response.ok) {
+    throw new Error(`Gagal membaca daftar prodi: ${prodiRes.text}`);
+  }
+  const existingProdi = new Set(
+    (Array.isArray(prodiRes.json) ? prodiRes.json : []).map(
+      (p) => `${p.ptn_id}::${p.nama}`
+    )
+  );
 
-  const BATCH = 100;
+  const payload = rows
+    .map((r) => {
+      const ptnId = idPtn.get(r.singkatan);
+      return {
+        ptn_id: ptnId,
+        nama: r.nama,
+        rumpun: r.rumpun,
+        jenjang: r.jenjang,
+        mapel_pendukung: r.mapel,
+        butuh_portofolio: r.butuhPortofolio,
+        daya_tampung_snbp: r.dsnbp,
+        daya_tampung_snbt: r.dsnbt,
+        peminat_snbp_historis: r.psnbp,
+        peminat_snbt_historis: r.psnbt,
+        bobot_snbp: r.bobot,
+        bobot_snbt: r.bobotSnbt,
+      };
+    })
+    .filter((r) => !existingProdi.has(`${r.ptn_id}::${r.nama}`));
+
+  console.log(
+    `3/3 Insert ${payload.length} prodi baru ` +
+      `(${existingProdi.size} sudah ada, total target ${rows.length})...`
+  );
+
+  const BATCH = 80;
+  let inserted = 0;
   for (let i = 0; i < payload.length; i += BATCH) {
     const batch = payload.slice(i, i + BATCH);
-    const res = await request('prodi?on_conflict=ptn_id,nama', {
+    const res = await request('prodi', {
       method: 'POST',
-      headers: {
-        Prefer: 'resolution=ignore-duplicates,return=minimal',
-      },
+      headers: { Prefer: 'return=minimal' },
       body: JSON.stringify(batch),
     });
     if (!res.response.ok) {
@@ -139,7 +170,8 @@ async function main() {
           `(HTTP ${res.response.status}): ${res.text}`
       );
     }
-    console.log(`   ${Math.min(i + BATCH, payload.length)}/${payload.length}`);
+    inserted += batch.length;
+    console.log(`   ${inserted}/${payload.length}`);
   }
 
   const head = await fetch(`${url}/rest/v1/prodi?select=id`, {

@@ -23,9 +23,9 @@ create table if not exists public.sekolah (
 -- ----------------------------------------------------------------
 create table if not exists public.ptn (
   id uuid primary key default gen_random_uuid(),
+  kode text not null unique,
   nama text not null,
   singkatan text not null unique,
-  kota text,
   created_at timestamptz not null default now()
 );
 
@@ -36,16 +36,18 @@ create table if not exists public.prodi (
   id uuid primary key default gen_random_uuid(),
   ptn_id uuid not null references public.ptn(id) on delete cascade,
   nama text not null,
-  rumpun text,
+  rumpun text not null default 'campuran',
+  jenjang text not null default 'S1',
   mapel_pendukung text[] not null default '{}',
+  butuh_portofolio boolean not null default false,
   daya_tampung_snbp integer not null default 40,
   daya_tampung_snbt integer not null default 60,
   peminat_snbp_historis integer[] not null default '{}',
   peminat_snbt_historis integer[] not null default '{}',
   bobot_snbp jsonb not null default
     '{"rapor_umum":0.5,"mapel_pendukung":0.3,"prestasi":0.1,"tka":0.1}'::jsonb,
-  median_snbp numeric(6,2),
-  median_snbt numeric(6,2),
+  bobot_snbt jsonb not null default
+    '{"PU":0.15,"PPU":0.13,"PBM":0.13,"PK":0.15,"LBI":0.15,"LBE":0.14,"PM":0.15}'::jsonb,
   created_at timestamptz not null default now(),
   unique (ptn_id, nama)
 );
@@ -61,6 +63,7 @@ create table if not exists public.siswa (
   peringkat_kelas_paralel integer,
   jumlah_siswa_eligible integer,
   skor_tka numeric(6,2),
+  skor_utbk numeric(6,2),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -107,7 +110,7 @@ create table if not exists public.pilihan_siswa (
 );
 
 -- ----------------------------------------------------------------
--- 8. HASIL PREDIKSI
+-- 8. HASIL PREDIKSI (opsional, untuk arsip)
 -- ----------------------------------------------------------------
 create table if not exists public.hasil_prediksi (
   id uuid primary key default gen_random_uuid(),
@@ -123,7 +126,7 @@ create table if not exists public.hasil_prediksi (
 );
 
 -- ----------------------------------------------------------------
--- 9. CHAT PESAN
+-- 9. CHAT PESAN (opsional, untuk arsip)
 -- ----------------------------------------------------------------
 create table if not exists public.chat_pesan (
   id uuid primary key default gen_random_uuid(),
@@ -143,13 +146,14 @@ select
   pt.nama as universitas,
   pt.singkatan,
   p.rumpun,
+  p.jenjang,
   p.mapel_pendukung,
   p.daya_tampung_snbp,
   p.daya_tampung_snbt,
   p.peminat_snbp_historis,
   p.peminat_snbt_historis,
-  p.median_snbp,
-  p.median_snbt
+  p.bobot_snbp,
+  p.bobot_snbt
 from public.prodi p
 join public.ptn pt on pt.id = p.ptn_id;
 

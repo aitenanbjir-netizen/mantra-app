@@ -102,7 +102,7 @@ export default function SNBTPage() {
     const { data, error: err } = await supabase
       .from('pilihan_siswa')
       .select(
-        'urutan, prodi:prodi_id(id, nama, rumpun, mapel_pendukung, daya_tampung_snbp, daya_tampung_snbt, peminat_snbp_historis, peminat_snbt_historis, median_snbp, median_snbt, ptn:ptn_id(nama, singkatan))'
+        'urutan, prodi:prodi_id(id, nama, rumpun, mapel_pendukung, daya_tampung_snbp, daya_tampung_snbt, peminat_snbp_historis, peminat_snbt_historis, bobot_snbp, bobot_snbt, ptn:ptn_id(nama, singkatan))'
       )
       .eq('siswa_id', siswaId)
       .eq('jalur', 'SNBT')
@@ -136,14 +136,8 @@ export default function SNBTPage() {
         daya_tampung_snbt: Number(prodi.daya_tampung_snbt) || 0,
         peminat_snbp_historis: prodi.peminat_snbp_historis || [],
         peminat_snbt_historis: prodi.peminat_snbt_historis || [],
-        median_snbp:
-          prodi.median_snbp !== null && prodi.median_snbp !== undefined
-            ? Number(prodi.median_snbp)
-            : null,
-        median_snbt:
-          prodi.median_snbt !== null && prodi.median_snbt !== undefined
-            ? Number(prodi.median_snbt)
-            : null,
+        median_snbp: Number(prodi.bobot_snbp?.median_snbp) || null,
+        median_snbt: Number(prodi.bobot_snbt?.median_snbt) || null,
       });
     }
 
