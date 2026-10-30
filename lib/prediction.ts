@@ -22,6 +22,34 @@ import {
   CONFIDENCE_LEVEL,
   DATA_VINTAGE,
   MODEL_VERSION,
+  DEFAULT_DAYA_TAMPUNG_SNBP,
+  DEFAULT_DAYA_TAMPUNG_SNBT,
+  DEFAULT_MEDIAN_SNBP,
+  DEFAULT_MEDIAN_SNBT,
+  DEFAULT_PEMINAT_ESTIMASI,
+  MIN_PEMINAT_ESTIMASI,
+  MAX_PILIHAN_SNBP,
+  MAX_PILIHAN_SNBT,
+  PENALTI_URUTAN,
+  CONFIDENCE_MIN_POINTS_TINGGI,
+  CONFIDENCE_MIN_POINTS_SEDANG,
+  FAKTOR_TREN_AMBANG,
+  FAKTOR_KONSISTEN_AMBANG,
+  FAKTOR_PRESTASI_KUAT,
+  FAKTOR_PRESTASI_MINIM,
+  FAKTOR_KETAT_RENDAH,
+  FAKTOR_KETAT_TINGGI,
+  FAKTOR_PENALTI_DISPLAY,
+  FAKTOR_SELISIH_DIVISOR,
+  FAKTOR_SELISIH_MAX,
+  SARAN_AMBANG_PENDUKUNG,
+  SARAN_AMBANG_RAPOR,
+  SARAN_AMBANG_PRESTASI,
+  SARAN_PROBABILITAS_RENDAH,
+  SUBTES_SNBT,
+  SKOR_SUBTES_MIN,
+  SKOR_SUBTES_MAX,
+  INDEKS_SEKOLAH_DEFAULT,
 } from './config';
 
 // ================================================================
@@ -94,19 +122,30 @@ type BreakdownSkor = {
 // ================================================================
 
 function estimasiPeminatTahunIni(peminatHistoris: number[]): number {
-  if (peminatHistoris.length === 0) return 1000;
-  if (peminatHistoris.length === 1) return peminatHistoris[0];
+  const valid = peminatHistoris.filter((n) => Number.isFinite(n) && n > 0);
+  if (valid.length === 0) return DEFAULT_PEMINAT_ESTIMASI;
+  if (valid.length === 1) return valid[0];
 
-  const recent = peminatHistoris.slice(-3);
+  const recent = valid.slice(-3);
   const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
 
   if (recent.length >= 2) {
     const slope =
       (recent[recent.length - 1] - recent[0]) / (recent.length - 1);
-    return Math.max(100, Math.round(avg + slope));
+    return Math.max(MIN_PEMINAT_ESTIMASI, Math.round(avg + slope));
   }
 
   return Math.round(avg);
+}
+
+function getConfidenceData(jumlahData: number): string {
+  if (jumlahData >= CONFIDENCE_MIN_POINTS_TINGGI) {
+    return CONFIDENCE_LEVEL.TINGGI;
+  }
+  if (jumlahData >= CONFIDENCE_MIN_POINTS_SEDANG) {
+    return CONFIDENCE_LEVEL.SEDANG;
+  }
+  return CONFIDENCE_LEVEL.RENDAH;
 }
 
 function buatBreakdownFaktor(params: {
@@ -124,25 +163,29 @@ function buatBreakdownFaktor(params: {
   const penghambat: { faktor: string; kontribusi: string }[] = [];
 
   const selisih = params.skorKomposit - params.estimasiCutoff;
+  const kontribusiSelisih = Math.max(
+    -FAKTOR_SELISIH_MAX,
+    Math.min(FAKTOR_SELISIH_MAX, selisih / FAKTOR_SELISIH_DIVISOR)
+  );
 
   if (selisih > 0) {
     pendorong.push({
       faktor: `Skor di atas estimasi cutoff (+${selisih.toFixed(1)})`,
-      kontribusi: `+${Math.min(0.3, selisih / 50).toFixed(2)}`,
+      kontribusi: `+${kontribusiSelisih.toFixed(2)}`,
     });
   } else {
     penghambat.push({
       faktor: `Skor di bawah estimasi cutoff (${selisih.toFixed(1)})`,
-      kontribusi: `${Math.max(-0.3, selisih / 50).toFixed(2)}`,
+      kontribusi: kontribusiSelisih.toFixed(2),
     });
   }
 
-  if (params.keketatan >= 0.15) {
+  if (params.keketatan >= FAKTOR_KETAT_RENDAH) {
     pendorong.push({
       faktor: `Keketatan rendah (1:${Math.round(1 / params.keketatan)})`,
       kontribusi: '+0.05',
     });
-  } else if (params.keketatan <= 0.05) {
+  } else if (params.keketatan <= FAKTOR_KETAT_TINGGI) {
     penghambat.push({
       faktor: `Keketatan tinggi (1:${Math.round(1 / params.keketatan)})`,
       kontribusi: '-0.14',
@@ -150,40 +193,40 @@ function buatBreakdownFaktor(params: {
   }
 
   if (params.urutan > 1) {
-    const penaltiMap = [1, 0.72, 0.55, 0.42];
+    const penalti = PENALTI_URUTAN[params.urutan] ?? 1;
     penghambat.push({
       faktor: `Pilihan ke-${params.urutan} (bersaing sisa kursi)`,
-      kontribusi: `-${((1 - penaltiMap[params.urutan - 1]) * 0.2).toFixed(2)}`,
+      kontribusi: `-${((1 - penalti) * FAKTOR_PENALTI_DISPLAY).toFixed(2)}`,
     });
   }
 
   if (params.breakdownSkor && params.jalur === 'SNBP') {
     const b = params.breakdownSkor;
-    if (b.S_tren > 0.3) {
+    if (b.S_tren > FAKTOR_TREN_AMBANG) {
       pendorong.push({
         faktor: 'Tren nilai naik konsisten',
         kontribusi: '+0.06',
       });
-    } else if (b.S_tren < -0.3) {
+    } else if (b.S_tren < -FAKTOR_TREN_AMBANG) {
       penghambat.push({
         faktor: 'Tren nilai menurun',
         kontribusi: '-0.06',
       });
     }
 
-    if (b.S_konsisten > 0.7) {
+    if (b.S_konsisten > FAKTOR_KONSISTEN_AMBANG) {
       pendorong.push({
         faktor: 'Nilai sangat konsisten',
         kontribusi: '+0.04',
       });
     }
 
-    if (b.S_prestasi > 20) {
+    if (b.S_prestasi > FAKTOR_PRESTASI_KUAT) {
       pendorong.push({
         faktor: 'Prestasi relevan kuat',
         kontribusi: '+0.08',
       });
-    } else if (b.S_prestasi < 5) {
+    } else if (b.S_prestasi < FAKTOR_PRESTASI_MINIM) {
       penghambat.push({
         faktor: 'Prestasi minim / tidak relevan',
         kontribusi: '-0.05',
@@ -198,23 +241,29 @@ function buatSaran(params: {
   jalur: string;
   probabilitas: number;
   breakdownSkor?: BreakdownSkor;
+  subtesTerendah?: { nama: string; skor: number };
 }): string[] {
   const saran: string[] = [];
 
   if (params.jalur === 'SNBP' && params.breakdownSkor) {
     const b = params.breakdownSkor;
-    if (b.S_pendukung < 85) {
+    if (b.S_pendukung < SARAN_AMBANG_PENDUKUNG) {
       saran.push('Naikkan nilai mapel pendukung di semester 5.');
     }
-    if (b.S_rapor < 85) {
+    if (b.S_rapor < SARAN_AMBANG_RAPOR) {
       saran.push('Perbaiki rata-rata seluruh mapel agar lebih kompetitif.');
     }
     if (b.S_tren < 0) {
       saran.push('Tunjukkan tren nilai naik dari semester 4 ke 5.');
     }
-    if (b.S_prestasi < 10) {
+    if (b.S_prestasi < SARAN_AMBANG_PRESTASI) {
       saran.push(
         'Ikut minimal 1 lomba tingkat kab/kota yang relevan dengan prodi.'
+      );
+    }
+    if (b.S_tka === 0) {
+      saran.push(
+        'Kalau kamu punya nilai TKA, tambahkan agar estimasi lebih akurat.'
       );
     }
   }
@@ -223,10 +272,16 @@ function buatSaran(params: {
     saran.push(
       'Perbanyak tryout UTBK untuk melatih manajemen waktu 195 menit.'
     );
-    saran.push('Fokus pada subtes dengan skor terendah.');
+    if (params.subtesTerendah) {
+      saran.push(
+        `Fokus latihan ${params.subtesTerendah.nama} (skor ${params.subtesTerendah.skor}) karena menjadi subtes terlemahmu.`
+      );
+    } else {
+      saran.push('Fokus pada subtes dengan skor terendah.');
+    }
   }
 
-  if (params.probabilitas < 0.35) {
+  if (params.probabilitas < SARAN_PROBABILITAS_RENDAH) {
     saran.push('Pertimbangkan prodi alternatif dengan keketatan lebih rendah.');
   }
 
@@ -242,11 +297,14 @@ export function prediksiSNBP(params: {
   pilihan: ProdiPilihan[];
   disclaimer: string;
 }): HasilPrediksi {
-  if (params.pilihan.length === 0 || params.pilihan.length > 2) {
-    throw new Error('SNBP memerlukan 1-2 pilihan prodi.');
+  if (
+    params.pilihan.length === 0 ||
+    params.pilihan.length > MAX_PILIHAN_SNBP
+  ) {
+    throw new Error(`SNBP memerlukan 1-${MAX_PILIHAN_SNBP} pilihan prodi.`);
   }
 
-  const sigma = getSigma('SNBP' as any);
+  const sigma = getSigma('SNBP');
   const hasilPilihan: HasilPilihanProdi[] = [];
   const probabilitasList: number[] = [];
 
@@ -260,7 +318,8 @@ export function prediksiSNBP(params: {
       prestasi: params.siswa.prestasi,
       skorTKA: params.siswa.skorTKA,
       akreditasi: params.siswa.akreditasi,
-      indeksSekolahDiPTN: params.siswa.indeksSekolahDiPTN ?? 0.5,
+      indeksSekolahDiPTN:
+        params.siswa.indeksSekolahDiPTN ?? INDEKS_SEKOLAH_DEFAULT,
       peringkatKelas: params.siswa.peringkatKelas,
       jumlahEligible: params.siswa.jumlahEligible,
       bobot: p.bobotSNBP,
@@ -269,9 +328,11 @@ export function prediksiSNBP(params: {
     const skorFinal = result.skorFinal;
     const breakdown = result.breakdown as BreakdownSkor;
 
+    const dayaTampung =
+      p.dayaTampung > 0 ? p.dayaTampung : DEFAULT_DAYA_TAMPUNG_SNBP;
     const peminat = estimasiPeminatTahunIni(p.peminatHistoris);
-    const keketatan = hitungKeketatan(p.dayaTampung, peminat);
-    const medianPelamar = p.medianPelamar ?? 80;
+    const keketatan = hitungKeketatan(dayaTampung, peminat);
+    const medianPelamar = p.medianPelamar ?? DEFAULT_MEDIAN_SNBP;
     const cutoff = estimasiCutoff(medianPelamar, sigma, keketatan);
 
     const prob = hitungProbabilitas({
@@ -283,7 +344,10 @@ export function prediksiSNBP(params: {
 
     probabilitasList.push(prob);
 
-    const [low, high] = hitungInterval(prob, CONFIDENCE_LEVEL.SEDANG);
+    const confidence = getConfidenceData(
+      p.peminatHistoris.length + (p.medianPelamar ? 1 : 0)
+    );
+    const [low, high] = hitungInterval(prob, confidence);
     const kat = getKategori(prob);
 
     const { pendorong, penghambat } = buatBreakdownFaktor({
@@ -315,7 +379,7 @@ export function prediksiSNBP(params: {
       kategori: kat.key,
       kategoriLabel: kat.label,
       kategoriWarna: kat.warna,
-      confidenceData: CONFIDENCE_LEVEL.SEDANG,
+      confidenceData: confidence,
       faktorPendorong: pendorong,
       faktorPenghambat: penghambat,
       saran: saranList,
@@ -348,12 +412,43 @@ export function prediksiSNBT(params: {
   pilihan: ProdiPilihan[];
   disclaimer: string;
 }): HasilPrediksi {
-  if (params.pilihan.length === 0 || params.pilihan.length > 4) {
-    throw new Error('SNBT memerlukan 1-4 pilihan prodi.');
+  if (
+    params.pilihan.length === 0 ||
+    params.pilihan.length > MAX_PILIHAN_SNBT
+  ) {
+    throw new Error(`SNBT memerlukan 1-${MAX_PILIHAN_SNBT} pilihan prodi.`);
   }
 
-  const sigma = getSigma('SNBT' as any);
-  const skorKomposit = hitungSkorUTBK(params.skorSubtes);
+  const belumLengkap = SUBTES_SNBT.filter(
+    (s) =>
+      typeof params.skorSubtes[s.kode] !== 'number' ||
+      !Number.isFinite(params.skorSubtes[s.kode])
+  );
+  if (belumLengkap.length > 0) {
+    throw new Error(
+      `Skor subtes belum lengkap: ${belumLengkap
+        .map((s) => s.singkatan)
+        .join(', ')}.`
+    );
+  }
+
+  const skorBersih: Record<string, number> = {};
+  for (const s of SUBTES_SNBT) {
+    skorBersih[s.kode] = Math.max(
+      SKOR_SUBTES_MIN,
+      Math.min(SKOR_SUBTES_MAX, Number(params.skorSubtes[s.kode]))
+    );
+  }
+
+  const sigma = getSigma('SNBT');
+  const skorKomposit = hitungSkorUTBK(skorBersih);
+  const urutSubtes = SUBTES_SNBT.map((s) => ({
+    nama: s.nama,
+    skor: skorBersih[s.kode],
+  })).sort((a, b) => a.skor - b.skor);
+  const terendah = urutSubtes[0];
+  const tertinggi = urutSubtes[urutSubtes.length - 1];
+
   const hasilPilihan: HasilPilihanProdi[] = [];
   const probabilitasList: number[] = [];
 
@@ -361,9 +456,11 @@ export function prediksiSNBT(params: {
     const p = params.pilihan[i];
     const urutan = i + 1;
 
+    const dayaTampung =
+      p.dayaTampung > 0 ? p.dayaTampung : DEFAULT_DAYA_TAMPUNG_SNBT;
     const peminat = estimasiPeminatTahunIni(p.peminatHistoris);
-    const keketatan = hitungKeketatan(p.dayaTampung, peminat);
-    const medianPelamar = p.medianPelamar ?? 620;
+    const keketatan = hitungKeketatan(dayaTampung, peminat);
+    const medianPelamar = p.medianPelamar ?? DEFAULT_MEDIAN_SNBT;
     const cutoff = estimasiCutoff(medianPelamar, sigma, keketatan);
 
     const prob = hitungProbabilitas({
@@ -375,7 +472,10 @@ export function prediksiSNBT(params: {
 
     probabilitasList.push(prob);
 
-    const [low, high] = hitungInterval(prob, CONFIDENCE_LEVEL.SEDANG);
+    const confidence = getConfidenceData(
+      p.peminatHistoris.length + (p.medianPelamar ? 1 : 0)
+    );
+    const [low, high] = hitungInterval(prob, confidence);
     const kat = getKategori(prob);
 
     const { pendorong, penghambat } = buatBreakdownFaktor({
@@ -386,9 +486,19 @@ export function prediksiSNBT(params: {
       urutan,
     });
 
+    pendorong.push({
+      faktor: `Subtes terkuat: ${tertinggi.nama} (${tertinggi.skor})`,
+      kontribusi: '+0.04',
+    });
+    penghambat.push({
+      faktor: `Subtes terlemah: ${terendah.nama} (${terendah.skor})`,
+      kontribusi: '-0.04',
+    });
+
     const saranList = buatSaran({
       jalur: 'SNBT',
       probabilitas: prob,
+      subtesTerendah: terendah,
     });
 
     hasilPilihan.push({
@@ -405,7 +515,7 @@ export function prediksiSNBT(params: {
       kategori: kat.key,
       kategoriLabel: kat.label,
       kategoriWarna: kat.warna,
-      confidenceData: CONFIDENCE_LEVEL.SEDANG,
+      confidenceData: confidence,
       faktorPendorong: pendorong,
       faktorPenghambat: penghambat,
       saran: saranList,

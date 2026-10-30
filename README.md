@@ -1,36 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MANTRA
 
-## Getting Started
+**Manajemen Akademik & Navigasi Tekanan** — aplikasi web untuk memperkirakan peluang lolos SNBP/SNBT siswa SMA, dilengkapi pendamping kesehatan mental.
 
-First, run the development server:
+> MANTRA adalah estimator probabilistik, bukan oracle. Semua hasil prediksi wajib dibaca bersama confidence interval dan disclaimer.
+
+## Fitur
+
+- **Data Diri** — profil siswa, sekolah, akreditasi, peringkat kelas, nilai TKA opsional, dan target prodi.
+- **Rapor** — input nilai 5 semester untuk banyak mapel sekaligus.
+- **Prestasi** — input lomba, tingkat, peringkat, dan relevansi dengan prodi.
+- **Prediksi SNBP** — skor komposit dari rapor, mapel pendukung, prestasi, TKA, tren, konsistensi, dan indeks sekolah.
+- **Prediksi SNBT** — input 7 subtes UTBK, pilih 1–4 prodi, lihat peluang tiap pilihan.
+- **MANTRA Care** — chat AI (Groq) untuk mendengarkan dan membantu mengelola stres akademik, dengan pengingat krisis.
+- **Mobile-first dark mode** dengan aksen pink `#ff2d55`.
+
+## Stack
+
+- Next.js 16 (App Router) + TypeScript
+- Tailwind CSS v4 + shadcn/ui (Base UI, preset Nova)
+- Supabase (PostgreSQL)
+- Groq API (`openai/gpt-oss-120b`, fallback `openai/gpt-oss-20b`)
+- Vercel
+
+## Setup Lokal
+
+```bash
+git clone https://github.com/aitenanbjir-netizen/mantra-app.git
+cd mantra-app
+npm install
+cp .env.example .env.local
+```
+
+Isi `.env.local`:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+GROQ_API_KEY=gsk_...
+```
+
+### Menyiapkan Supabase
+
+1. Buat project baru di [supabase.com/dashboard](https://supabase.com/dashboard).
+2. Buka **SQL Editor**, tempel isi `supabase/schema.sql`, lalu **Run**.
+3. Tempel isi `supabase/seed.sql`, lalu **Run** (50 PTN, 500 prodi).
+   Alternatif: setelah schema dibuat, jalankan `npm run seed`.
+4. Salin **Project URL** dan **anon public key** dari Settings → API ke `.env.local`.
+
+### Menjalankan
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Skrip
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Perintah | Fungsi |
+|---|---|
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm run start` | Jalankan hasil build |
+| `npm run seed` | Isi Supabase via REST (butuh schema sudah dibuat) |
+| `npm run seed:sql` | Generate ulang `supabase/seed.sql` dari `scripts/seed-data.mjs` |
 
-## Learn More
+## Struktur
 
-To learn more about Next.js, take a look at the following resources:
+```
+app/
+  page.tsx              Data diri + sekolah + target prodi
+  rapor/page.tsx        Input nilai 5 semester
+  prestasi/page.tsx     Input prestasi
+  snbp/page.tsx         Prediksi SNBP
+  snbt/page.tsx         Prediksi SNBT (7 subtes)
+  chat/page.tsx         MANTRA Care
+  api/chat/route.ts     Proxy Groq + rate limit
+components/
+  HasilPrediksi.tsx     Tampilan hasil bersama SNBP/SNBT
+  ProdiSearch.tsx       Pencarian prodi
+lib/
+  config.ts             Semua hyperparameter & prompt
+  scoring.ts            Rumus skor
+  prediction.ts         Probabilitas, interval, faktor
+supabase/
+  schema.sql            9 tabel + 1 view
+  seed.sql              50 PTN × 10 prodi
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy ke Vercel
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Import repo di Vercel.
+2. Settings → Environment Variables, tambahkan:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `GROQ_API_KEY`
+3. Deploy ulang. Build tidak lagi gagal kalau env belum diisi, tetapi fitur database/chat baru aktif setelah env diisi.
 
-## Deploy on Vercel
+## Catatan Data
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Data 500 prodi di `supabase/seed.sql` adalah **estimasi wajar** (daya tampung, peminat historis, median) untuk keperluan demo, bukan angka resmi SNPMB. Ganti dengan data resmi saat tersedia. Semua parameter prediksi berada di `lib/config.ts`.

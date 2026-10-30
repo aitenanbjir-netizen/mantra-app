@@ -16,11 +16,13 @@ export type Prodi = {
   daya_tampung_snbt: number;
   peminat_snbp_historis: number[];
   peminat_snbt_historis: number[];
+  median_snbp?: number | null;
+  median_snbt?: number | null;
 };
 
 type Props = {
   value: Prodi | null;
-  onChange: (prodi: Prodi) => void;
+  onChange: (prodi: Prodi | null) => void;
 };
 
 export function ProdiSearch({ value, onChange }: Props) {
@@ -29,18 +31,42 @@ export function ProdiSearch({ value, onChange }: Props) {
   const [filtered, setFiltered] = useState<Prodi[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
+    let aktif = true;
+
     async function fetchProdi() {
-      const { data, error } = await supabase
-        .from('prodi_lengkap')
-        .select('*')
-        .order('universitas', { ascending: true })
-        .limit(500);
-      if (!error && data) setProdiList(data as Prodi[]);
-      setLoading(false);
+      try {
+        const { data, error: err } = await supabase
+          .from('prodi_lengkap')
+          .select('*')
+          .order('universitas', { ascending: true })
+          .limit(1000);
+
+        if (!aktif) return;
+        if (err) {
+          setError(
+            'Gagal memuat data prodi. Periksa koneksi database lalu muat ulang.'
+          );
+        } else if (data) {
+          setProdiList(data as Prodi[]);
+        }
+      } catch {
+        if (aktif) {
+          setError(
+            'Gagal memuat data prodi. Periksa koneksi database lalu muat ulang.'
+          );
+        }
+      } finally {
+        if (aktif) setLoading(false);
+      }
     }
+
     fetchProdi();
+    return () => {
+      aktif = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -53,7 +79,8 @@ export function ProdiSearch({ value, onChange }: Props) {
       .filter(
         (p) =>
           p.prodi.toLowerCase().includes(q) ||
-          p.universitas.toLowerCase().includes(q)
+          p.universitas.toLowerCase().includes(q) ||
+          p.singkatan.toLowerCase().includes(q)
       )
       .slice(0, 30);
     setFiltered(results);
@@ -68,7 +95,7 @@ export function ProdiSearch({ value, onChange }: Props) {
   return (
     <div className="relative">
       {value ? (
-        <div className="flex items-center justify-between bg-secondary border border-border rounded-xl p-3">
+        <div className="flex items-center justify-between bg-secondary border border-border rounded-xl p-3 gap-2">
           <div className="flex flex-col overflow-hidden">
             <span className="text-sm font-semibold truncate">{value.prodi}</span>
             <span className="text-xs text-muted-foreground truncate">
@@ -77,8 +104,8 @@ export function ProdiSearch({ value, onChange }: Props) {
           </div>
           <button
             type="button"
-            onClick={() => onChange(null as any)}
-            className="text-xs text-muted-foreground hover:text-foreground px-2"
+            onClick={() => onChange(null)}
+            className="text-xs text-muted-foreground hover:text-foreground px-2 shrink-0"
           >
             Ganti
           </button>
@@ -95,11 +122,19 @@ export function ProdiSearch({ value, onChange }: Props) {
               }}
               onFocus={() => setShowDropdown(true)}
               placeholder={
-                loading ? 'Memuat data prodi...' : 'Ketik nama prodi / universitas...'
+                loading
+                  ? 'Memuat data prodi...'
+                  : 'Ketik nama prodi / universitas...'
               }
               className="bg-secondary border-border pl-10"
             />
           </div>
+
+          {error && (
+            <div className="mt-2 text-[11px] text-red-300 bg-red-900/20 border border-red-500/30 rounded-lg p-2">
+              {error}
+            </div>
+          )}
 
           {showDropdown && filtered.length > 0 && (
             <div className="absolute z-50 w-full mt-2 max-h-72 overflow-y-auto bg-card border border-border rounded-xl shadow-2xl">
@@ -119,11 +154,15 @@ export function ProdiSearch({ value, onChange }: Props) {
             </div>
           )}
 
-          {showDropdown && search.length >= 2 && filtered.length === 0 && !loading && (
-            <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl p-4 text-sm text-muted-foreground">
-              Prodi tidak ditemukan. Coba kata kunci lain.
-            </div>
-          )}
+          {showDropdown &&
+            search.length >= 2 &&
+            filtered.length === 0 &&
+            !loading &&
+            !error && (
+              <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl p-4 text-sm text-muted-foreground">
+                Prodi tidak ditemukan. Coba kata kunci lain.
+              </div>
+            )}
         </>
       )}
     </div>

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed": "node scripts/seed.mjs",
+    "seed:sql": "node scripts/generate-seed.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

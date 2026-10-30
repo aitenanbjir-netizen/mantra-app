@@ -8,6 +8,8 @@ const tabs = [
   { name: 'Rapor', href: '/rapor', icon: '📊' },
   { name: 'Prestasi', href: '/prestasi', icon: '🏆' },
   { name: 'SNBP', href: '/snbp', icon: '🎓' },
+  { name: 'SNBT', href: '/snbt', icon: '📝' },
+  { name: 'Chat', href: '/chat', icon: '💬' },
 ];
 
 export function Navbar() {

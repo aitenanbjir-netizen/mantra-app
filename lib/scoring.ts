@@ -172,7 +172,7 @@ export function hitungSkorSNBP(params: {
     peringkat_faktor: number;
   };
 } {
-  const bobot = params.bobot ?? BOBOT_SNBP_DEFAULT;
+  const bobotDasar = params.bobot ?? BOBOT_SNBP_DEFAULT;
 
   const S_rapor = hitungRataRapor(params.rapor);
   const S_pendukung = hitungRataMapel(params.rapor, params.mapelPendukung);
@@ -189,6 +189,28 @@ export function hitungSkorSNBP(params: {
     params.peringkatKelas,
     params.jumlahEligible
   );
+
+  // TKA bersifat opsional. Kalau belum diisi, bobot TKA dikeluarkan lalu
+  // seluruh bobot dinormalisasi ulang. Tanpa ini, skor maksimum siswa tanpa
+  // TKA hanya 90 dan semua prediksi SNBP akan tampak mustahil.
+  const bobotAktif = { ...bobotDasar };
+  if (params.skorTKA === null || params.skorTKA === undefined) {
+    bobotAktif.tka = 0;
+  }
+  const totalBobot =
+    bobotAktif.rapor_umum +
+    bobotAktif.mapel_pendukung +
+    bobotAktif.prestasi +
+    bobotAktif.tka;
+  const bobot =
+    totalBobot > 0
+      ? {
+          rapor_umum: bobotAktif.rapor_umum / totalBobot,
+          mapel_pendukung: bobotAktif.mapel_pendukung / totalBobot,
+          prestasi: bobotAktif.prestasi / totalBobot,
+          tka: bobotAktif.tka / totalBobot,
+        }
+      : BOBOT_SNBP_DEFAULT;
 
   const BASE =
     bobot.rapor_umum * S_rapor +

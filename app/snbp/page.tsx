@@ -7,20 +7,46 @@ import {
   prediksiSNBP,
   type SiswaProfile,
   type ProdiPilihan,
+  type HasilPrediksi,
 } from '@/lib/prediction';
-import { DISCLAIMER_TEXT } from '@/lib/config';
+import {
+  DISCLAIMER_TEXT,
+  DEFAULT_DAYA_TAMPUNG_SNBP,
+  DEFAULT_MEDIAN_SNBP,
+  DEFAULT_PEMINAT_HISTORIS,
+  INDEKS_SEKOLAH_DEFAULT,
+} from '@/lib/config';
 import { Button } from '@/components/ui/button';
+import { HasilPrediksiView } from '@/components/HasilPrediksi';
+
+type SiswaCache = {
+  id: string;
+  nama: string;
+  kelas?: string;
+  sekolah_id?: string;
+  akreditasi?: string;
+  peringkatKelas?: number | null;
+  jumlahEligible?: number | null;
+  target_prodi?: string;
+  prodi_id?: string;
+};
 
 export default function SNBPPage() {
-  const [siswa, setSiswa] = useState<any>(null);
+  const [siswa, setSiswa] = useState<SiswaCache | null>(null);
   const [loading, setLoading] = useState(true);
   const [hitungLoading, setHitungLoading] = useState(false);
-  const [hasil, setHasil] = useState<any>(null);
+  const [hasil, setHasil] = useState<HasilPrediksi | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     const cached = localStorage.getItem('mantra_siswa');
-    if (cached) setSiswa(JSON.parse(cached));
+    if (cached) {
+      try {
+        setSiswa(JSON.parse(cached));
+      } catch {
+        setError('Data siswa di browser rusak. Isi ulang Data Diri.');
+      }
+    }
     setLoading(false);
   }, []);
 
@@ -58,7 +84,7 @@ export default function SNBPPage() {
       const { data: pilihanData, error: errPilihan } = await supabase
         .from('pilihan_siswa')
         .select(
-          'urutan, prodi:prodi_id(id, nama, rumpun, mapel_pendukung, daya_tampung_snbp, peminat_snbp_historis, bobot_snbp, ptn:ptn_id(nama, singkatan))'
+          'urutan, prodi:prodi_id(id, nama, rumpun, mapel_pendukung, daya_tampung_snbp, peminat_snbp_historis, median_snbp, bobot_snbp, ptn:ptn_id(nama, singkatan))'
         )
         .eq('siswa_id', siswa.id)
         .eq('jalur', 'SNBP')
@@ -71,38 +97,50 @@ export default function SNBPPage() {
 
       const profile: SiswaProfile = {
         rapor: raporData.map((r: any) => ({
-          semester: r.semester,
+          semester: Number(r.semester),
           mapel: r.mapel,
           nilai: Number(r.nilai),
         })),
         prestasi: (prestasiData || []).map((p: any) => ({
           level: p.level,
           peringkat: p.peringkat,
-          relevan_prodi: p.relevan_prodi,
+          relevan_prodi: Boolean(p.relevan_prodi),
         })),
-        skorTKA: siswaData.skor_tka || null,
-        akreditasi: siswaData.sekolah?.akreditasi || 'A',
-        indeksSekolahDiPTN: 0.5,
-        peringkatKelas: siswaData.peringkat_kelas_paralel,
-        jumlahEligible: siswaData.jumlah_siswa_eligible,
+        skorTKA: siswaData.skor_tka ? Number(siswaData.skor_tka) : null,
+        akreditasi: siswaData.sekolah?.akreditasi || siswa.akreditasi || 'A',
+        indeksSekolahDiPTN: INDEKS_SEKOLAH_DEFAULT,
+        peringkatKelas:
+          siswaData.peringkat_kelas_paralel !== null
+            ? Number(siswaData.peringkat_kelas_paralel)
+            : null,
+        jumlahEligible:
+          siswaData.jumlah_siswa_eligible !== null
+            ? Number(siswaData.jumlah_siswa_eligible)
+            : null,
       };
 
-      const pilihan: ProdiPilihan[] = pilihanData.map((p: any) => {
-        const prodi = Array.isArray(p.prodi) ? p.prodi[0] : p.prodi;
-        const ptn = prodi?.ptn
-          ? Array.isArray(prodi.ptn)
-            ? prodi.ptn[0]
-            : prodi.ptn
-          : null;
+      const pilihan: ProdiPilihan[] = pilihanData.map((row: any) => {
+        const prodi = Array.isArray(row.prodi) ? row.prodi[0] : row.prodi;
+        if (!prodi) throw new Error('Data prodi tidak ditemukan.');
+        const ptn = Array.isArray(prodi.ptn) ? prodi.ptn[0] : prodi.ptn;
+
         return {
           id: prodi.id,
           nama: prodi.nama,
           universitas: ptn?.singkatan || ptn?.nama || '-',
-          dayaTampung: prodi.daya_tampung_snbp || 40,
-          peminatHistoris: prodi.peminat_snbp_historis || [1000],
+          dayaTampung:
+            Number(prodi.daya_tampung_snbp) || DEFAULT_DAYA_TAMPUNG_SNBP,
+          peminatHistoris:
+            Array.isArray(prodi.peminat_snbp_historis) &&
+            prodi.peminat_snbp_historis.length > 0
+              ? prodi.peminat_snbp_historis.map(Number)
+              : DEFAULT_PEMINAT_HISTORIS,
           mapelPendukung: prodi.mapel_pendukung || [],
-          bobotSNBP: prodi.bobot_snbp,
-          medianPelamar: 82,
+          bobotSNBP: prodi.bobot_snbp || undefined,
+          medianPelamar:
+            prodi.median_snbp !== null && prodi.median_snbp !== undefined
+              ? Number(prodi.median_snbp)
+              : DEFAULT_MEDIAN_SNBP,
         };
       });
 
@@ -114,7 +152,7 @@ export default function SNBPPage() {
 
       setHasil(result);
     } catch (err: any) {
-      setError(err.message);
+      setError(err?.message || 'Terjadi kesalahan saat menghitung prediksi.');
     } finally {
       setHitungLoading(false);
     }
@@ -174,125 +212,26 @@ export default function SNBPPage() {
 
       {hasil && (
         <>
-          <div className="bg-primary/10 border border-primary/30 rounded-2xl p-6 text-center">
-            <p className="text-xs text-muted-foreground mb-1">
-              PELUANG LOLOS SNBP (TOTAL)
-            </p>
-            <p className="text-5xl font-extrabold text-primary mb-2">
-              {Math.round(hasil.probabilitasTotal * 100)}%
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {hasil.pilihan.length} pilihan prodi
-            </p>
+          <HasilPrediksiView hasil={hasil} />
+
+          <div className="grid grid-cols-2 gap-2">
+            <Link href="/snbt">
+              <Button
+                variant="outline"
+                className="w-full border-border text-xs py-5"
+              >
+                📝 Coba Prediksi SNBT
+              </Button>
+            </Link>
+            <Link href="/chat">
+              <Button
+                variant="outline"
+                className="w-full border-border text-xs py-5"
+              >
+                💬 Curhat ke MANTRA Care
+              </Button>
+            </Link>
           </div>
-
-          {hasil.pilihan.map((p: any) => (
-            <div
-              key={p.urutan}
-              className="bg-card border border-border rounded-2xl p-5 space-y-3"
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <p className="text-[10px] text-muted-foreground">
-                    PILIHAN {p.urutan}
-                  </p>
-                  <p className="font-bold text-sm">{p.prodiNama}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {p.universitas}
-                  </p>
-                </div>
-                <div
-                  className="px-3 py-1 rounded-full text-[10px] font-bold"
-                  style={{
-                    background: p.kategoriWarna + '20',
-                    color: p.kategoriWarna,
-                  }}
-                >
-                  {p.kategoriLabel}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-secondary rounded-xl p-2">
-                  <p className="text-[9px] text-muted-foreground">SKOR KAMU</p>
-                  <p className="font-bold text-lg">{p.skorKomposit}</p>
-                </div>
-                <div className="bg-secondary rounded-xl p-2">
-                  <p className="text-[9px] text-muted-foreground">
-                    EST. CUTOFF
-                  </p>
-                  <p className="font-bold text-lg">{p.estimasiCutoff}</p>
-                </div>
-                <div className="bg-secondary rounded-xl p-2">
-                  <p className="text-[9px] text-muted-foreground">PELUANG</p>
-                  <p className="font-bold text-lg text-primary">
-                    {Math.round(p.probabilitas * 100)}%
-                  </p>
-                </div>
-              </div>
-
-              <div className="text-center text-xs text-muted-foreground">
-                Interval:{' '}
-                <span className="text-foreground font-semibold">
-                  {Math.round(p.intervalBawah * 100)}% -{' '}
-                  {Math.round(p.intervalAtas * 100)}%
-                </span>
-              </div>
-
-              {p.faktorPendorong.length > 0 && (
-                <div className="bg-emerald-900/20 border border-emerald-500/20 rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-emerald-300 mb-2">
-                    ✅ FAKTOR PENDORONG
-                  </p>
-                  {p.faktorPendorong.map((f: any, i: number) => (
-                    <div key={i} className="flex justify-between text-xs py-0.5">
-                      <span className="text-muted-foreground">{f.faktor}</span>
-                      <span className="text-emerald-300 font-bold">
-                        {f.kontribusi}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {p.faktorPenghambat.length > 0 && (
-                <div className="bg-red-900/20 border border-red-500/20 rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-red-300 mb-2">
-                    ⚠️ FAKTOR PENGHAMBAT
-                  </p>
-                  {p.faktorPenghambat.map((f: any, i: number) => (
-                    <div key={i} className="flex justify-between text-xs py-0.5">
-                      <span className="text-muted-foreground">{f.faktor}</span>
-                      <span className="text-red-300 font-bold">
-                        {f.kontribusi}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {p.saran.length > 0 && (
-                <div className="bg-secondary rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-muted-foreground mb-2">
-                    💡 SARAN
-                  </p>
-                  <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                    {p.saran.map((s: string, i: number) => (
-                      <li key={i}>{s}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          ))}
-
-          <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-3 text-xs text-yellow-200/80 leading-relaxed">
-            ⚠️ {hasil.disclaimer}
-          </div>
-
-          <p className="text-center text-[10px] text-muted-foreground">
-            Model: {hasil.modelVersion} · Data: {hasil.dataVintage}
-          </p>
         </>
       )}
     </div>

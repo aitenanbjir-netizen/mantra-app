@@ -96,6 +96,146 @@ export const BOBOT_SNBT_DEFAULT: Record<string, number> = {
   PM: 0.15,
 };
 
+// ---------- SUBTES SNBT (UTBK) ----------
+export type SubtesSNBT = {
+  kode: string;
+  nama: string;
+  singkatan: string;
+  deskripsi: string;
+};
+
+export const SUBTES_SNBT: SubtesSNBT[] = [
+  {
+    kode: 'PU',
+    nama: 'Penalaran Umum',
+    singkatan: 'PU',
+    deskripsi: 'Logika, analogi, dan penalaran deduktif/induktif.',
+  },
+  {
+    kode: 'PPU',
+    nama: 'Pengetahuan dan Pemahaman Umum',
+    singkatan: 'PPU',
+    deskripsi: 'Wawasan kebahasaan, budaya, dan pengetahuan umum.',
+  },
+  {
+    kode: 'PBM',
+    nama: 'Pemahaman Bacaan dan Menulis',
+    singkatan: 'PBM',
+    deskripsi: 'Membaca kritis, ejaan, dan penyuntingan teks.',
+  },
+  {
+    kode: 'PK',
+    nama: 'Pengetahuan Kuantitatif',
+    singkatan: 'PK',
+    deskripsi: 'Aritmetika, aljabar, geometri, dan statistika dasar.',
+  },
+  {
+    kode: 'LBI',
+    nama: 'Literasi Bahasa Indonesia',
+    singkatan: 'LBI',
+    deskripsi: 'Memahami dan menganalisis teks bahasa Indonesia.',
+  },
+  {
+    kode: 'LBE',
+    nama: 'Literasi Bahasa Inggris',
+    singkatan: 'LBE',
+    deskripsi: 'Membaca dan memahami teks berbahasa Inggris.',
+  },
+  {
+    kode: 'PM',
+    nama: 'Penalaran Matematika',
+    singkatan: 'PM',
+    deskripsi: 'Pemecahan masalah matematika kontekstual.',
+  },
+];
+
+export const SKOR_SUBTES_MIN = 0;
+export const SKOR_SUBTES_MAX = 1000;
+export const SKOR_SUBTES_DEFAULT = 500;
+
+// ---------- BATAS PILIHAN ----------
+export const MAX_PILIHAN_SNBP = 2;
+export const MAX_PILIHAN_SNBT = 4;
+
+// ---------- DEFAULT DATA PRODI ----------
+export const DEFAULT_DAYA_TAMPUNG_SNBP = 40;
+export const DEFAULT_DAYA_TAMPUNG_SNBT = 60;
+export const DEFAULT_PEMINAT_ESTIMASI = 1000;
+export const MIN_PEMINAT_ESTIMASI = 100;
+export const DEFAULT_PEMINAT_HISTORIS = [1000];
+export const DEFAULT_MEDIAN_SNBP = 82;
+export const DEFAULT_MEDIAN_SNBT = 620;
+
+// ---------- CONFIDENCE DATA ----------
+export const CONFIDENCE_MIN_POINTS_TINGGI = 3;
+export const CONFIDENCE_MIN_POINTS_SEDANG = 1;
+
+export const CONFIDENCE_LABEL: Record<string, string> = {
+  rendah: 'Rendah',
+  sedang: 'Sedang',
+  tinggi: 'Tinggi',
+};
+
+// ---------- AMBANG FAKTOR & SARAN ----------
+export const FAKTOR_TREN_AMBANG = 0.3;
+export const FAKTOR_KONSISTEN_AMBANG = 0.7;
+export const FAKTOR_PRESTASI_KUAT = 20;
+export const FAKTOR_PRESTASI_MINIM = 5;
+
+export const FAKTOR_KETAT_RENDAH = 0.15;
+export const FAKTOR_KETAT_TINGGI = 0.05;
+export const FAKTOR_PENALTI_DISPLAY = 0.2;
+export const FAKTOR_SELISIH_DIVISOR = 50;
+export const FAKTOR_SELISIH_MAX = 0.3;
+
+export const SARAN_AMBANG_PENDUKUNG = 85;
+export const SARAN_AMBANG_RAPOR = 85;
+export const SARAN_AMBANG_PRESTASI = 10;
+export const SARAN_PROBABILITAS_RENDAH = 0.35;
+
+// ---------- CHAT AI (GROQ) ----------
+// Groq sudah menonaktifkan llama-3.3-70b-versatile untuk key ini.
+// Model yang tersedia dan aktif: openai/gpt-oss-120b.
+export const CHAT_MODEL = 'openai/gpt-oss-120b';
+export const CHAT_MODEL_FALLBACK = 'openai/gpt-oss-20b';
+export const CHAT_TEMPERATURE = 0.6;
+export const CHAT_MAX_TOKENS = 700;
+export const CHAT_MAX_HISTORY = 12;
+export const CHAT_MAX_INPUT_CHARS = 1500;
+export const CHAT_RATE_LIMIT = 20;
+export const CHAT_RATE_WINDOW_MS = 10 * 60 * 1000;
+export const CHAT_TIMEOUT_MS = 30000;
+
+export const CHAT_GREETING =
+  'Hai! Aku MANTRA Care 🌸 Teman cerita untuk urusan sekolah, SNBP/SNBT, dan perasaanmu. Nggak ada yang perlu kamu rapikan dulu—cerita aja apa yang lagi berat.';
+
+export const CHAT_QUICK_PROMPTS = [
+  'Aku cemas banget soal SNBP, takut gagal.',
+  'Cara bagi waktu belajar biar nggak burnout?',
+  'Aku capek dan kehilangan semangat belajar.',
+  'Orang tuaku terus membandingkanku dengan orang lain.',
+];
+
+export const CRISIS_TEXT =
+  'Kalau kamu merasa dalam bahaya, ingin menyakiti diri, atau putus asa berat: hubungi orang dewasa terdekat, guru BK, atau layanan darurat 119 ext. 8 / 112. Kamu tidak sendirian.';
+
+export const CHAT_SYSTEM_PROMPT = `Kamu "MANTRA Care", pendamping kesehatan mental untuk siswa SMA Indonesia yang sedang mempersiapkan SNBP/SNBT.
+
+Tugasmu:
+- Mendengarkan dengan empati, memvalidasi perasaan, dan membantu memecah masalah menjadi langkah kecil yang realistis.
+- Menjawab dalam Bahasa Indonesia yang hangat, santai, tidak menghakimi, dan mudah dipahami.
+- Fokus pada hal yang bisa dikendalikan siswa: rutinitas belajar, tidur, istirahat, dukungan sosial, dan cara meminta bantuan.
+
+Aturan:
+- Jangan memberi diagnosis medis, meresepkan obat, atau menggantikan psikolog/psikiater.
+- Jangan menjanjikan kelulusan. Prediksi MANTRA hanyalah estimasi statistik.
+- Jika ada tanda bahaya (menyakiti diri, putus asa, kekerasan, panic berat), ajak segera menghubungi orang dewasa/guru BK dan layanan darurat 119 ext. 8 atau 112.
+- Jangan meminta data pribadi sensitif (NIK, alamat, nomor HP).
+- Jawaban singkat: maksimal sekitar 180 kata, boleh pakai poin-poin dengan tanda "-".
+- Tulis dalam teks biasa. Jangan pakai markdown seperti **tebal**, ##, atau tabel.
+- Jika pertanyaan di luar topik, jawab singkat lalu arahkan kembali dengan hangat.
+- Akhiri dengan satu pertanyaan reflektif atau langkah kecil yang bisa dilakukan hari ini.`;
+
 // ---------- DISCLAIMER ----------
 export const DISCLAIMER_TEXT =
   'Hasil di halaman ini adalah estimasi statistik berdasarkan data publik daya tampung–peminat dan data yang kamu masukkan sendiri. Panitia SNPMB tidak mempublikasikan nilai ambang kelulusan, sehingga angka di sini TIDAK dapat dijadikan jaminan diterima atau ditolak. Gunakan sebagai bahan pertimbangan, bukan sebagai dasar tunggal keputusan.';

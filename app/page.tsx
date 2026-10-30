@@ -22,6 +22,7 @@ export default function Home() {
   const [kelas, setKelas] = useState('');
   const [peringkatKelas, setPeringkatKelas] = useState('');
   const [jumlahEligible, setJumlahEligible] = useState('');
+  const [skorTKA, setSkorTKA] = useState('');
 
   const [npsn, setNpsn] = useState('');
   const [namaSekolah, setNamaSekolah] = useState('');
@@ -102,6 +103,7 @@ export default function Home() {
             jumlah_siswa_eligible: jumlahEligible
               ? Number(jumlahEligible)
               : null,
+            skor_tka: skorTKA ? Number(skorTKA) : null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', existingSiswa.id);
@@ -121,6 +123,7 @@ export default function Home() {
             jumlah_siswa_eligible: jumlahEligible
               ? Number(jumlahEligible)
               : null,
+            skor_tka: skorTKA ? Number(skorTKA) : null,
           })
           .select('id')
           .single();
@@ -156,6 +159,7 @@ export default function Home() {
           akreditasi,
           peringkatKelas: peringkatKelas ? Number(peringkatKelas) : null,
           jumlahEligible: jumlahEligible ? Number(jumlahEligible) : null,
+          skorTKA: skorTKA ? Number(skorTKA) : null,
           target_prodi: `${prodi.prodi} (${prodi.singkatan})`,
           prodi_id: prodi.id,
         })
@@ -228,6 +232,25 @@ export default function Home() {
               placeholder="Cth: 30"
               className="bg-secondary border-border"
             />
+          </div>
+
+          <div>
+            <Label className="mb-2 block text-sm">
+              📈 Nilai TKA (opsional, 0-100)
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={skorTKA}
+              onChange={(e) => setSkorTKA(e.target.value)}
+              placeholder="Kosongkan kalau belum punya"
+              className="bg-secondary border-border"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Kalau diisi, bobot TKA ikut dihitung. Kalau kosong, skor
+              dinormalisasi dari rapor + prestasi saja.
+            </p>
           </div>
         </div>
       </div>
