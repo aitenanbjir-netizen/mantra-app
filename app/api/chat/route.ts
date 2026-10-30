@@ -14,6 +14,7 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
