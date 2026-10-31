@@ -4,6 +4,8 @@
 
 > MANTRA adalah estimator probabilistik, bukan oracle. Semua hasil prediksi wajib dibaca bersama confidence interval dan disclaimer.
 
+**Live demo:** [mantra-app-gules.vercel.app](https://mantra-app-gules.vercel.app)
+
 ## Fitur
 
 - **Data Diri** — profil siswa, sekolah, akreditasi, peringkat kelas, nilai TKA opsional, dan target prodi.
