@@ -214,7 +214,7 @@ export default function RaporPage() {
           Isi nilai (0-100) untuk setiap mapel per semester.
         </p>
 
-        <div className="grid grid-cols-[1fr_repeat(5,50px)_30px] gap-1 mb-2 text-[10px] text-muted-foreground font-semibold">
+        <div className="grid grid-cols-[minmax(0,1fr)_repeat(5,40px)_22px] gap-1 mb-2 text-[10px] text-muted-foreground font-semibold">
           <div>Mapel</div>
           <div className="text-center">S1</div>
           <div className="text-center">S2</div>
@@ -227,9 +227,12 @@ export default function RaporPage() {
         {mapelList.map((m, idx) => (
           <div
             key={idx}
-            className="grid grid-cols-[1fr_repeat(5,50px)_30px] gap-1 mb-1 items-center"
+            className="grid grid-cols-[minmax(0,1fr)_repeat(5,40px)_22px] gap-1 mb-1 items-center"
           >
-            <div className="text-xs truncate" title={m.nama}>
+            <div
+              className="text-[10px] leading-tight break-words pr-1"
+              title={m.nama}
+            >
               {m.nama}
             </div>
             {m.nilai.map((v, s) => (
@@ -240,13 +243,13 @@ export default function RaporPage() {
                 max={100}
                 value={v}
                 onChange={(e) => updateNilai(idx, s, e.target.value)}
-                className="bg-secondary border-border h-8 text-xs text-center px-1"
+                className="bg-secondary border-border h-8 text-xs text-center px-0.5"
                 placeholder="0"
               />
             ))}
             <button
               onClick={() => hapusMapel(idx)}
-              className="text-red-400 hover:text-red-300 text-xs"
+              className="text-red-400 hover:text-red-300 text-[11px] leading-none"
               title="Hapus"
             >
               ✕
@@ -254,7 +257,7 @@ export default function RaporPage() {
           </div>
         ))}
 
-        <div className="grid grid-cols-[1fr_repeat(5,50px)_30px] gap-1 mt-3 pt-3 border-t border-border items-center">
+        <div className="grid grid-cols-[minmax(0,1fr)_repeat(5,40px)_22px] gap-1 mt-3 pt-3 border-t border-border items-center">
           <div className="text-[10px] font-bold text-muted-foreground">
             RATA-RATA
           </div>

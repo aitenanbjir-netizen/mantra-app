@@ -25,20 +25,20 @@ export function Navbar() {
           </p>
         </Link>
 
-        <nav className="flex gap-1 bg-card border border-border rounded-xl p-1 overflow-x-auto">
+        <nav className="flex gap-0.5 bg-card border border-border rounded-xl p-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map((tab) => {
             const isActive = pathname === tab.href;
             return (
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`flex-1 min-w-[70px] text-center py-2 px-1 rounded-lg text-[10px] font-semibold transition-all whitespace-nowrap ${
+                className={`flex-1 min-w-[52px] text-center py-2 px-0.5 rounded-lg text-[9px] sm:text-[10px] font-semibold transition-all whitespace-nowrap ${
                   isActive
                     ? 'bg-primary/20 text-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                 }`}
               >
-                <span className="mr-1">{tab.icon}</span>
+                <span className="mr-0.5">{tab.icon}</span>
                 {tab.name}
               </Link>
             );
